@@ -1,0 +1,158 @@
+========================================================
+MODELO LÓGICO — Desafio Final 2026.2 (ClínicaCare)
+========================================================
+Banco de dados alvo: MySQL — schema "clinica_care"
+
+--------------------------------------------------------
+CONVENÇÕES ADOTADAS
+--------------------------------------------------------
+- Nomes de tabela e coluna: snake_case, minúsculo, sem acento.
+- Toda tabela tem PK própria auto-incrementada (id_<entidade>),
+  exceto a tabela associativa medico_especialidade (PK composta).
+- Datas de cadastro/controle usam DEFAULT para reduzir a chance
+  de inconsistência no DML.
+
+--------------------------------------------------------
+RESUMO DOS RELACIONAMENTOS
+--------------------------------------------------------
+- pacientes (N) -- (1) convenios
+- pacientes (1) -- (1) prontuarios
+- pacientes (1) -- (N) consultas
+- medicos (1) -- (N) consultas
+- medicos (1) -- (N) horarios_disponibilidade
+- medicos (N) -- (N) especialidades   [via medico_especialidade]
+- especialidades (1) -- (N) consultas
+- consultas (1) -- (1) evolucoes
+- consultas (1) -- (1) pagamentos
+- evolucoes (1) -- (N) prescricoes
+
+--------------------------------------------------------
+TABELAS
+--------------------------------------------------------
+
+1) pacientes
+   id_paciente          INT             PK AUTO_INCREMENT
+   nome_completo        VARCHAR(150)    NOT NULL
+   cpf                  VARCHAR(14)     NOT NULL UNIQUE
+   data_nascimento      DATE            NOT NULL
+   genero               VARCHAR(20)
+   endereco             VARCHAR(200)
+   telefone             VARCHAR(20)
+   email                VARCHAR(120)
+   id_convenio          INT             NOT NULL, FK -> convenios(id_convenio)
+   data_cadastro        DATE            NOT NULL DEFAULT (CURRENT_DATE)
+
+2) convenios
+   id_convenio          INT             PK AUTO_INCREMENT
+   nome                 VARCHAR(100)    NOT NULL UNIQUE   (inclui a linha "Particular")
+   tipo                 ENUM('Particular','Convenio')  NOT NULL
+   registro_ans         VARCHAR(20)     NULL (vazio para "Particular")
+   telefone_contato     VARCHAR(20)
+   email_contato        VARCHAR(120)
+   percentual_cobertura DECIMAL(5,2)
+   ativo                BOOLEAN         NOT NULL DEFAULT TRUE
+   data_cadastro        DATE            NOT NULL DEFAULT (CURRENT_DATE)
+
+3) medicos
+   id_medico            INT             PK AUTO_INCREMENT
+   nome_completo        VARCHAR(150)    NOT NULL
+   crm                  VARCHAR(20)     NOT NULL
+   crm_uf               CHAR(2)         NOT NULL
+   telefone             VARCHAR(20)
+   email                VARCHAR(120)    UNIQUE
+   data_admissao        DATE
+   status_ativo         BOOLEAN         NOT NULL DEFAULT TRUE
+   data_cadastro        DATE            NOT NULL DEFAULT (CURRENT_DATE)
+   CONSTRAINT UNIQUE (crm, crm_uf)   -- CRM só é único dentro do mesmo estado
+
+4) especialidades
+   id_especialidade         INT             PK AUTO_INCREMENT
+   nome_especialidade       VARCHAR(100)    NOT NULL UNIQUE
+   descricao                VARCHAR(255)
+   duracao_padrao_minutos   INT
+   valor_base                DECIMAL(10,2)
+   requer_encaminhamento    BOOLEAN         NOT NULL DEFAULT FALSE
+   ativo                    BOOLEAN         NOT NULL DEFAULT TRUE
+   data_cadastro            DATE            NOT NULL DEFAULT (CURRENT_DATE)
+
+5) medico_especialidade   [tabela associativa — resolve N:N medicos x especialidades]
+   id_medico            INT   FK -> medicos(id_medico)
+   id_especialidade     INT   FK -> especialidades(id_especialidade)
+   principal            BOOLEAN   NOT NULL DEFAULT FALSE
+   data_registro        DATE      NOT NULL DEFAULT (CURRENT_DATE)
+   PRIMARY KEY (id_medico, id_especialidade)
+
+6) horarios_disponibilidade
+   id_horario           INT             PK AUTO_INCREMENT
+   id_medico            INT             NOT NULL, FK -> medicos(id_medico)
+   dia_semana           TINYINT         NOT NULL   (1=Domingo ... 7=Sábado)
+   hora_inicio          TIME            NOT NULL
+   hora_fim             TIME            NOT NULL
+   modalidade           ENUM('Presencial','Telemedicina') NOT NULL DEFAULT 'Presencial'
+   ativo                BOOLEAN         NOT NULL DEFAULT TRUE
+   data_cadastro        DATE            NOT NULL DEFAULT (CURRENT_DATE)
+
+7) consultas
+   id_consulta          INT             PK AUTO_INCREMENT
+   id_paciente          INT             NOT NULL, FK -> pacientes(id_paciente)
+   id_medico            INT             NOT NULL, FK -> medicos(id_medico)
+   id_especialidade     INT             NOT NULL, FK -> especialidades(id_especialidade)
+   data_consulta        DATE            NOT NULL
+   hora_consulta        TIME            NOT NULL
+   status               ENUM('Agendada','Realizada','Cancelada','Faltou') NOT NULL DEFAULT 'Agendada'
+   valor                DECIMAL(10,2)   NOT NULL
+   data_agendamento     DATETIME        NOT NULL
+   observacoes          VARCHAR(255)
+   CONSTRAINT UNIQUE (id_medico, data_consulta, hora_consulta)
+     -- impede o mesmo médico ser agendado duas vezes no mesmo horário
+   ATENÇÃO (regra a garantir no DML, não no schema):
+     id_especialidade da consulta deve ser uma das especialidades
+     que o médico realmente possui em medico_especialidade.
+
+8) prontuarios
+   id_prontuario                  INT         PK AUTO_INCREMENT
+   id_paciente                    INT         NOT NULL UNIQUE, FK -> pacientes(id_paciente)
+   data_abertura                  DATE        NOT NULL
+   tipo_sanguineo                 VARCHAR(3)
+   alergias_conhecidas            VARCHAR(255)
+   historico_familiar_relevante   VARCHAR(255)
+   observacoes_gerais             VARCHAR(500)
+   data_ultima_atualizacao        DATETIME
+
+9) evolucoes
+   id_evolucao          INT             PK AUTO_INCREMENT
+   id_consulta          INT             NOT NULL UNIQUE, FK -> consultas(id_consulta)
+   data_registro         DATETIME       NOT NULL
+   queixa_principal      VARCHAR(255)
+   diagnostico           VARCHAR(255)
+   anotacoes_medico      TEXT
+   cid                   VARCHAR(10)
+   conduta               VARCHAR(255)
+   -- id_prontuario NÃO é armazenado aqui: é derivável via
+   -- consultas.id_paciente -> prontuarios.id_paciente (evita redundância)
+
+10) prescricoes
+   id_prescricao              INT             PK AUTO_INCREMENT
+   id_evolucao                INT             NOT NULL, FK -> evolucoes(id_evolucao)
+   medicamento                VARCHAR(150)    NOT NULL
+   dosagem                    VARCHAR(50)
+   posologia                  VARCHAR(150)
+   quantidade                 INT
+   duracao_tratamento_dias    INT
+   data_prescricao            DATE            NOT NULL
+   observacoes                VARCHAR(255)
+
+11) pagamentos
+   id_pagamento          INT             PK AUTO_INCREMENT
+   id_consulta           INT             NOT NULL UNIQUE, FK -> consultas(id_consulta)
+   valor                 DECIMAL(10,2)   NOT NULL
+   data_pagamento        DATE            (nulo até o pagamento ocorrer)
+   metodo_pagamento      ENUM('Dinheiro','Cartao','Pix')  (nulo até pagar)
+   status_pagamento      ENUM('Pendente','Pago','Cancelado') NOT NULL DEFAULT 'Pendente'
+   numero_recibo         VARCHAR(30)     UNIQUE (preenchido só quando status = 'Pago')
+   data_vencimento       DATE
+   observacoes           VARCHAR(255)
+
+--------------------------------------------------------
+TOTAL: 10 entidades fortes + 1 tabela associativa (medico_especialidade)
+--------------------------------------------------------

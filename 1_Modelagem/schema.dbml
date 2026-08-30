@@ -1,0 +1,198 @@
+// ==========================================================
+// Modelo Conceitual/Lógico — Desafio Final 2026.2 (ClínicaCare)
+// Cole este conteúdo em https://dbdiagram.io -> "Create new Diagram"
+// (apague o conteúdo de exemplo que já vem no editor e cole este)
+// ==========================================================
+
+Enum convenio_tipo {
+  Particular
+  Convenio
+}
+
+Enum consulta_status {
+  Agendada
+  Realizada
+  Cancelada
+  Faltou
+}
+
+Enum horario_modalidade {
+  Presencial
+  Telemedicina
+}
+
+Enum pagamento_metodo {
+  Dinheiro
+  Cartao
+  Pix
+}
+
+Enum pagamento_status {
+  Pendente
+  Pago
+  Cancelado
+}
+
+Table pacientes {
+  id_paciente int [pk, increment]
+  nome_completo varchar(150) [not null]
+  cpf varchar(14) [not null, unique]
+  data_nascimento date [not null]
+  genero varchar(20)
+  endereco varchar(200)
+  telefone varchar(20)
+  email varchar(120)
+  id_convenio int [not null]
+  data_cadastro date [not null]
+
+  Note: 'id_convenio nunca é nulo — pacientes sem plano usam a linha "Particular" em convenios'
+}
+
+Table convenios {
+  id_convenio int [pk, increment]
+  nome varchar(100) [not null, unique]
+  tipo convenio_tipo [not null]
+  registro_ans varchar(20)
+  telefone_contato varchar(20)
+  email_contato varchar(120)
+  percentual_cobertura decimal(5,2)
+  ativo boolean [not null, default: true]
+  data_cadastro date [not null]
+}
+
+Table medicos {
+  id_medico int [pk, increment]
+  nome_completo varchar(150) [not null]
+  crm varchar(20) [not null]
+  crm_uf char(2) [not null]
+  telefone varchar(20)
+  email varchar(120) [unique]
+  data_admissao date
+  status_ativo boolean [not null, default: true]
+  data_cadastro date [not null]
+
+  indexes {
+    (crm, crm_uf) [unique]
+  }
+}
+
+Table especialidades {
+  id_especialidade int [pk, increment]
+  nome_especialidade varchar(100) [not null, unique]
+  descricao varchar(255)
+  duracao_padrao_minutos int
+  valor_base decimal(10,2)
+  requer_encaminhamento boolean [not null, default: false]
+  ativo boolean [not null, default: true]
+  data_cadastro date [not null]
+}
+
+Table medico_especialidade {
+  id_medico int [not null]
+  id_especialidade int [not null]
+  principal boolean [not null, default: false]
+  data_registro date [not null]
+
+  indexes {
+    (id_medico, id_especialidade) [pk]
+  }
+
+  Note: 'Tabela associativa — resolve o N:N entre medicos e especialidades'
+}
+
+Table horarios_disponibilidade {
+  id_horario int [pk, increment]
+  id_medico int [not null]
+  dia_semana tinyint [not null, note: '1=Domingo ... 7=Sábado']
+  hora_inicio time [not null]
+  hora_fim time [not null]
+  modalidade horario_modalidade [not null, default: 'Presencial']
+  ativo boolean [not null, default: true]
+  data_cadastro date [not null]
+}
+
+Table consultas {
+  id_consulta int [pk, increment]
+  id_paciente int [not null]
+  id_medico int [not null]
+  id_especialidade int [not null]
+  data_consulta date [not null]
+  hora_consulta time [not null]
+  status consulta_status [not null, default: 'Agendada']
+  valor decimal(10,2) [not null]
+  data_agendamento datetime [not null]
+  observacoes varchar(255)
+
+  indexes {
+    (id_medico, data_consulta, hora_consulta) [unique]
+  }
+
+  Note: 'UNIQUE(id_medico, data_consulta, hora_consulta) evita médico agendado 2x no mesmo horário'
+}
+
+Table prontuarios {
+  id_prontuario int [pk, increment]
+  id_paciente int [not null, unique]
+  data_abertura date [not null]
+  tipo_sanguineo varchar(3)
+  alergias_conhecidas varchar(255)
+  historico_familiar_relevante varchar(255)
+  observacoes_gerais varchar(500)
+  data_ultima_atualizacao datetime
+}
+
+Table evolucoes {
+  id_evolucao int [pk, increment]
+  id_consulta int [not null, unique]
+  data_registro datetime [not null]
+  queixa_principal varchar(255)
+  diagnostico varchar(255)
+  anotacoes_medico text
+  cid varchar(10)
+  conduta varchar(255)
+
+  Note: 'id_prontuario não é armazenado aqui — é derivável via consultas.id_paciente -> prontuarios.id_paciente'
+}
+
+Table prescricoes {
+  id_prescricao int [pk, increment]
+  id_evolucao int [not null]
+  medicamento varchar(150) [not null]
+  dosagem varchar(50)
+  posologia varchar(150)
+  quantidade int
+  duracao_tratamento_dias int
+  data_prescricao date [not null]
+  observacoes varchar(255)
+}
+
+Table pagamentos {
+  id_pagamento int [pk, increment]
+  id_consulta int [not null, unique]
+  valor decimal(10,2) [not null]
+  data_pagamento date
+  metodo_pagamento pagamento_metodo
+  status_pagamento pagamento_status [not null, default: 'Pendente']
+  numero_recibo varchar(30) [unique]
+  data_vencimento date
+  observacoes varchar(255)
+}
+
+// ---------------- Relacionamentos ----------------
+
+Ref: pacientes.id_convenio > convenios.id_convenio
+Ref: prontuarios.id_paciente - pacientes.id_paciente
+
+Ref: medico_especialidade.id_medico > medicos.id_medico
+Ref: medico_especialidade.id_especialidade > especialidades.id_especialidade
+
+Ref: horarios_disponibilidade.id_medico > medicos.id_medico
+
+Ref: consultas.id_paciente > pacientes.id_paciente
+Ref: consultas.id_medico > medicos.id_medico
+Ref: consultas.id_especialidade > especialidades.id_especialidade
+
+Ref: evolucoes.id_consulta - consultas.id_consulta
+Ref: pagamentos.id_consulta - consultas.id_consulta
+
+Ref: prescricoes.id_evolucao > evolucoes.id_evolucao
