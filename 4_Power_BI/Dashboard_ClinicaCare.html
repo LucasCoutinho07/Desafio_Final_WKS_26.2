@@ -3680,9 +3680,9 @@ return Plotly;
   <div class="filter-row">
     <label for="filtroEsp">Especialidade:</label>
     <select id="filtroEsp"></select>
-    <label for="filtroConv" style="margin-left:14px;">Convênio (só card de pacientes):</label>
+    <label for="filtroConv" style="margin-left:14px;">Convênio:</label>
     <select id="filtroConv"></select>
-    <span class="hint">Os cards e os gráficos de faturamento / no-show respondem ao filtro de especialidade</span>
+    <span class="hint">Especialidade filtra receita/ocupação/no-show e destaca a barra; convênio filtra o card de pacientes e destaca a fatia da pizza</span>
   </div>
 
   <div class="grid">
@@ -3746,12 +3746,14 @@ function barColor(rate) {
 
 function render() {
   const esp = selEsp.value;
+  const conv = selConv.value;
   const filtered = esp ? records.filter(r => r.especialidade === esp) : records;
 
   // KPIs
   const totalReceita = filtered.reduce((s, r) => s + (r.valor_pago || 0), 0);
+  const totalPacientes = conv ? DATA.pacientes_por_convenio[conv] : DATA.kpis.total_pacientes;
   const kpis = [
-    { label: "Total de Pacientes", value: DATA.kpis.total_pacientes, sub: "cadastrados na clínica" },
+    { label: "Total de Pacientes", value: totalPacientes, sub: conv ? `convênio: ${conv}` : "cadastrados na clínica" },
     { label: "Receita Recebida", value: fmtBRL(totalReceita), sub: esp ? `filtrado: ${esp}` : "todas as especialidades" },
     { label: "Taxa de Ocupação", value: fmtPct(ocupacaoRate(filtered)), sub: "consultas realizadas / não-agendadas" },
     { label: "Taxa de No-Show", value: fmtPct(noShowRate(filtered)), sub: "faltas / consultas passadas" },
@@ -3770,7 +3772,7 @@ function render() {
     y: barData.map(d => d.especialidade), x: barData.map(d => d.total),
     marker: { color: barData.map(d => esp && d.especialidade !== esp ? '#e1e0d9' : barColor(d.rate)) },
     hovertemplate: '%{y}: %{x} consultas<extra></extra>',
-  }], { ...commonLayout, height: 380, yaxis: { ...commonLayout.yaxis, autorange: 'reversed' }, margin: { l: 160, r: 20, t: 10, b: 40 } }, config);
+  }], { ...commonLayout, height: 380, yaxis: { ...commonLayout.yaxis, type: 'category', autorange: 'reversed' }, margin: { l: 160, r: 20, t: 10, b: 40 } }, config);
 
   // Column: faturamento por mes (só meses com consultas já concluídas — exclui meses 100% futuros/agendados, que distorceriam o gráfico de linha)
   const mesesComHistorico = new Set(records.filter(r => r.status !== "Agendada").map(r => r.mes));
@@ -3781,13 +3783,12 @@ function render() {
     hovertemplate: '%{x}: R$ %{y:,.2f}<extra></extra>',
   }], { ...commonLayout, height: 300, xaxis: { ...commonLayout.xaxis, type: 'category' } }, config);
 
-  // Pie: pacientes por convenio (static, not affected by especialidade filter)
-  const convSel = selConv.value;
+  // Pie: pacientes por convenio (fatiado destacado = convênio selecionado no filtro)
   const convEntries = Object.entries(DATA.pacientes_por_convenio);
   Plotly.newPlot('chartPie', [{
     type: 'pie', labels: convEntries.map(e => e[0]), values: convEntries.map(e => e[1]),
     marker: { colors: ['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#4a3aa7','#e34948','#008300','#9ec5f4','#f6c37a','#c9a0b4'] },
-    pull: convEntries.map(e => e[0] === convSel ? 0.06 : 0),
+    pull: convEntries.map(e => e[0] === conv ? 0.06 : 0),
     hovertemplate: '%{label}: %{value} pacientes<extra></extra>',
     textinfo: 'label+percent', textposition: 'inside',
   }], { ...commonLayout, height: 320, showlegend: false, margin: { l: 10, r: 10, t: 10, b: 10 } }, config);

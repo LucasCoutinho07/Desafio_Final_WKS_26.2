@@ -39,7 +39,6 @@ visualização de dados (dashboard).
   formatação condicional por cor
 - `4_Power_BI/Insights_Dashboard.docx` — análise escrita dos principais
   insights de cada visualização e recomendações
-- `4_Power_BI/medidas_dax_sugeridas.md` — cheat-sheet de medidas DAX (extra)
 
 ### Nota sobre a ferramenta do Módulo 4
 
